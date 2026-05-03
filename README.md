@@ -4,6 +4,10 @@ Read selected macOS text aloud from Raycast with Gemini text-to-speech, tuned fo
 
 ![Gemini TTS icon](assets/command-icon.png)
 
+## Store Status
+
+Submitted to the Raycast Store — review pending. Track progress at [raycast/extensions#27612](https://github.com/raycast/extensions/pull/27612). Until it ships in the Store, install locally with `npm install && npm run dev`.
+
 ## Why This Extension
 
 Gemini TTS is not just a voice endpoint. The official TTS guide emphasizes natural-language control over style, accent, pace, tone, audio tags, and transcript structure. This extension turns those Gemini strengths into Raycast controls so daily reading does not require hand-writing prompts.
