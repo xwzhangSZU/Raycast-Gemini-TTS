@@ -179,7 +179,7 @@ Manage long readings:
 - API: Gemini REST `POST /v1beta/models/{model}:generateContent`
 - Authentication: `x-goog-api-key: <Gemini API Key>`
 - Request config: `responseModalities: ["AUDIO"]` plus `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`
-- Prompt structure: per-session director profile (Audio Profile, Scene, Director's Notes) lifted into `systemInstruction`; per-chunk request carries only the synthesis preamble + transcript
+- Prompt structure: synthesis preamble + Audio Profile + Scene + Director's Notes + Transcript, all inline in `contents` (the TTS preview models reject `systemInstruction` with HTTP 400)
 - Audio response: base64 PCM from Gemini, wrapped into a 24 kHz mono 16-bit WAV file before playback
 - Playback: WAV files played through macOS `afplay`
 - Playback speed: `afplay -r <speed>` — applied at playback time, so cached audio is reusable across speed changes
