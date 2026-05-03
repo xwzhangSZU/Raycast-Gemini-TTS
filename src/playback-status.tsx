@@ -57,7 +57,7 @@ export default function PlaybackStatus() {
     >
       {live && (
         <MenuBarExtra.Section title="Now Reading">
-          <MenuBarExtra.Item title={live.textPreview || "MiniMax TTS"} subtitle={describePhase(live)} />
+          <MenuBarExtra.Item title={live.textPreview || "Gemini TTS"} subtitle={describePhase(live)} />
           <MenuBarExtra.Item title={`Voice: ${live.voiceId}`} />
           <MenuBarExtra.Item title={`Source: ${live.source}`} subtitle={`${live.totalChars} chars`} />
         </MenuBarExtra.Section>
@@ -66,7 +66,7 @@ export default function PlaybackStatus() {
       {!live && session && session.nextChunkIndex < session.chunks.length && (
         <MenuBarExtra.Section title="Last Reading">
           <MenuBarExtra.Item
-            title={truncate(session.text, 60) || "MiniMax TTS"}
+            title={truncate(session.text, 60) || "Gemini TTS"}
             subtitle={`Paused at ${session.nextChunkIndex + 1}/${session.chunks.length}`}
           />
           <MenuBarExtra.Item title={`Voice: ${session.options.voiceId}`} />
@@ -141,7 +141,7 @@ function describeMenubar(
     return {
       title: `${verb} ${live.chunkIndex + 1}/${live.chunkTotal}${speedSuffix}`,
       icon: { source: Icon.SpeakerOn, tintColor: live.phase === "synthesizing" ? Color.Orange : Color.Blue },
-      tooltip: `MiniMax TTS · ${verb} chunk ${live.chunkIndex + 1}/${live.chunkTotal} at ${formatSpeed(speed)}`,
+      tooltip: `Gemini TTS · ${verb} chunk ${live.chunkIndex + 1}/${live.chunkTotal} at ${formatSpeed(speed)}`,
     };
   }
 
@@ -149,7 +149,7 @@ function describeMenubar(
     return {
       title: `Paused ${live.chunkIndex + 1}/${live.chunkTotal}${speedSuffix}`,
       icon: { source: Icon.Pause, tintColor: Color.SecondaryText },
-      tooltip: `MiniMax TTS · paused at ${formatSpeed(speed)}. Click to resume.`,
+      tooltip: `Gemini TTS · paused at ${formatSpeed(speed)}. Click to resume.`,
     };
   }
 
@@ -157,7 +157,7 @@ function describeMenubar(
     return {
       title: `Paused ${session.nextChunkIndex + 1}/${session.chunks.length}${speedSuffix}`,
       icon: { source: Icon.Pause, tintColor: Color.SecondaryText },
-      tooltip: `MiniMax TTS · last reading paused at ${formatSpeed(speed)}. Click to resume.`,
+      tooltip: `Gemini TTS · last reading paused at ${formatSpeed(speed)}. Click to resume.`,
     };
   }
 

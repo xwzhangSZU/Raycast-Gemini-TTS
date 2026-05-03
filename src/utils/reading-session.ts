@@ -1,10 +1,13 @@
 import { LocalStorage } from "@raycast/api";
 import { createHash } from "crypto";
+import { buildOptionsFromPrefs, isSupportedModel, resolveOptionsForText } from "../api/gemini-tts";
 import type { TTSOptions } from "../api/types";
+import { GEMINI_VOICES } from "../constants/voices";
 import { chunkText } from "./text-chunker";
 import type { TextSourceKind } from "./text-source";
 
 const LAST_READING_SESSION_KEY = "last-reading-session";
+const GEMINI_VOICE_IDS = new Set(GEMINI_VOICES.map((voice) => voice.id));
 
 export interface ReadingSession {
   textHash: string;
@@ -31,6 +34,7 @@ export async function prepareReadingSession(
   const textHash = hashText(trimmedText);
   const chunks = chunkText(trimmedText);
   const existing = await getLastReadingSession();
+  const resolvedOptions = resolveOptionsForText(options, trimmedText);
   const now = new Date().toISOString();
 
   if (existing?.textHash === textHash && existing.nextChunkIndex > 0 && existing.nextChunkIndex < chunks.length) {
@@ -41,7 +45,7 @@ export async function prepareReadingSession(
       // Preserve the session's last live speed so a user-adjusted pace
       // survives a Quick Read re-trigger on the same text. Other knobs
       // (voice, model, language) still pick up the latest preferences.
-      options: { ...options, speed: existing.options.speed },
+      options: { ...resolvedOptions, speed: existing.options.speed },
       updatedAt: now,
     };
     await saveReadingSession(session);
@@ -54,7 +58,7 @@ export async function prepareReadingSession(
     source,
     chunks,
     nextChunkIndex: 0,
-    options,
+    options: resolvedOptions,
     createdAt: now,
     updatedAt: now,
   };
@@ -69,7 +73,7 @@ export async function getLastReadingSession(): Promise<ReadingSession | null> {
   try {
     const session = JSON.parse(raw) as ReadingSession;
     if (!session.textHash || !Array.isArray(session.chunks) || session.chunks.length === 0) return null;
-    return session;
+    return { ...session, options: normalizeSessionOptions(session.options) };
   } catch {
     return null;
   }
@@ -107,4 +111,30 @@ export function hashText(text: string): string {
 function clampChunkIndex(index: number, chunkCount: number): number {
   if (!Number.isFinite(index)) return 0;
   return Math.max(0, Math.min(Math.trunc(index), chunkCount));
+}
+
+function normalizeSessionOptions(rawOptions: Partial<TTSOptions> | undefined): TTSOptions {
+  const prefsOptions = buildOptionsFromPrefs();
+  const rawModel = typeof rawOptions?.model === "string" ? rawOptions.model : "";
+  const rawVoiceId = typeof rawOptions?.voiceId === "string" ? rawOptions.voiceId : "";
+
+  return {
+    ...prefsOptions,
+    model: isSupportedModel(rawModel) ? rawModel : prefsOptions.model,
+    voiceId: GEMINI_VOICE_IDS.has(rawVoiceId) ? rawVoiceId : prefsOptions.voiceId,
+    languageMode: prefsOptions.languageMode,
+    readingExperience: prefsOptions.readingExperience,
+    expressiveness: prefsOptions.expressiveness,
+    audioTagMode: prefsOptions.audioTagMode,
+    speed: normalizeSpeed(rawOptions?.speed, prefsOptions.speed),
+    directorNotes:
+      typeof rawOptions?.directorNotes === "string" ? rawOptions.directorNotes : prefsOptions.directorNotes,
+    sampleRate: typeof rawOptions?.sampleRate === "number" ? rawOptions.sampleRate : prefsOptions.sampleRate,
+  };
+}
+
+function normalizeSpeed(rawSpeed: unknown, fallback: number): number {
+  const parsed = typeof rawSpeed === "number" ? rawSpeed : Number(rawSpeed);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0.5, Math.min(2, parsed));
 }
