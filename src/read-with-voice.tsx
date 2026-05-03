@@ -7,16 +7,20 @@ import {
   getSelectedText,
   Icon,
   Color,
-  getPreferenceValues,
   openExtensionPreferences,
 } from "@raycast/api";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { addCustomVoices, collectCustomVoiceIds, FALLBACK_VOICES, groupVoicesByCategory } from "./constants/voices";
-import { synthesizeSpeech, buildOptionsFromPrefs, listVoices, TTSApiError } from "./api/minimax-tts";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { FALLBACK_VOICES, groupVoicesByCategory, isAcademicRecommendedVoice } from "./constants/voices";
+import {
+  synthesizeSpeech,
+  buildOptionsFromPrefs,
+  listVoices,
+  resolveOptionsForText,
+  TTSApiError,
+} from "./api/gemini-tts";
 import { chunkText } from "./utils/text-chunker";
 import { AudioPlayer, clearExternalStopRequest, hasExternalStopRequest } from "./utils/audio-player";
 import { getQuickReadVoiceOverride, setQuickReadVoiceOverride } from "./utils/voice-preferences";
-import { readCachedVoices, writeCachedVoices } from "./utils/voice-cache";
 import { buildTextPreview, clearPlaybackState, writePlaybackState } from "./utils/playback-state";
 import { clampSpeed, clearPlaybackSpeed, readPlaybackSpeed, writePlaybackSpeed } from "./utils/playback-speed";
 import type { VoiceConfig } from "./api/types";
@@ -36,52 +40,27 @@ export default function ReadWithVoice() {
   const [isLoading, setIsLoading] = useState(true);
   const [progress, setProgress] = useState<RowProgress | null>(null);
   const playerRef = useRef(new AudioPlayer());
-  const customDefaultVoiceId = useMemo(() => getPreferenceValues<Preferences>().customDefaultVoice?.trim() || null, []);
 
   useEffect(() => {
     let mounted = true;
 
     async function load() {
-      const prefs = getPreferenceValues<Preferences>();
-      const cacheKey = { region: prefs.region || "cn", authMode: prefs.authMode || "auto" };
       const quickReadVoiceOverride = await getQuickReadVoiceOverride();
-      const customVoiceIds = collectCustomVoiceIds(
-        prefs.customDefaultVoice,
-        prefs.customVoiceIds,
-        quickReadVoiceOverride,
-      );
-      const withCustomVoices = (voiceList: VoiceConfig[]) => addCustomVoices(voiceList, customVoiceIds);
-
-      // Render cached voices immediately so the picker is instant on warm start.
-      const cached = await readCachedVoices(cacheKey.region, cacheKey.authMode);
-      if (mounted && cached) {
-        setVoices(withCustomVoices(cached.voices));
-        setIsLoading(!cached.isFresh);
-      }
-
       const text = await getSelectedText().catch(() => "");
-      if (mounted) setSelectedText(text);
-
-      // Always refresh in the background so cloned voices show up promptly.
       try {
         const voiceList = await listVoices();
         if (!mounted) return;
-        if (voiceList.length > 0) {
-          setVoices(withCustomVoices(voiceList));
-          await writeCachedVoices(voiceList, cacheKey.region, cacheKey.authMode);
-        } else if (!cached) {
-          setVoices(withCustomVoices(FALLBACK_VOICES));
-        }
+        setSelectedText(text);
+        setVoices(includeStoredVoice(voiceList.length > 0 ? voiceList : FALLBACK_VOICES, quickReadVoiceOverride));
       } catch (error) {
         if (!mounted) return;
-        if (!cached) {
-          setVoices(withCustomVoices(FALLBACK_VOICES));
-          showToast({
-            style: Toast.Style.Failure,
-            title: "Using built-in voice list",
-            message: error instanceof Error ? error.message : String(error),
-          });
-        }
+        setSelectedText(text);
+        setVoices(includeStoredVoice(FALLBACK_VOICES, quickReadVoiceOverride));
+        showToast({
+          style: Toast.Style.Failure,
+          title: "Using built-in voice list",
+          message: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -119,7 +98,7 @@ export default function ReadWithVoice() {
       setProgress({ voiceId: voice.id, phase: "synthesizing", chunkIndex: 0, chunkTotal: total });
 
       try {
-        const options = buildOptionsFromPrefs(voice.id);
+        const options = resolveOptionsForText(buildOptionsFromPrefs(voice.id), text);
         let currentSpeed = clampSpeed(options.speed);
         await writePlaybackSpeed(currentSpeed);
 
@@ -158,7 +137,7 @@ export default function ReadWithVoice() {
             updatedAt: new Date().toISOString(),
           });
 
-          await player.playAudio(audio);
+          await player.playAudio(audio, currentSpeed);
         }
 
         if (!player.isStopped() && !hasExternalStopRequest()) {
@@ -222,7 +201,7 @@ export default function ReadWithVoice() {
     : "No text selected";
 
   return (
-    <List isLoading={isLoading} searchBarPlaceholder="Search MiniMax voices...">
+    <List isLoading={isLoading} searchBarPlaceholder="Search Gemini voices...">
       <List.Section title="Selected Text">
         <List.Item
           title={textPreview}
@@ -259,10 +238,10 @@ export default function ReadWithVoice() {
                   ...(rowProgress
                     ? [{ tag: { value: progressLabel(rowProgress), color: phaseColor(rowProgress.phase) } }]
                     : []),
-                  ...(customDefaultVoiceId === voice.id
-                    ? [{ tag: { value: "Default", color: Color.SecondaryText } }]
+                  ...(isAcademicRecommendedVoice(voice.id)
+                    ? [{ tag: { value: "Academic Pick", color: Color.Blue } }]
                     : []),
-                  ...(voice.isCustom ? [{ tag: { value: "Unverified", color: Color.Orange } }] : []),
+                  ...(voice.isCustom ? [{ tag: { value: "Stored", color: Color.Orange } }] : []),
                   ...(voice.description ? [{ text: voice.description }] : []),
                 ]}
                 actions={
@@ -303,4 +282,22 @@ function progressLabel(progress: RowProgress): string {
 
 function phaseColor(phase: RowPhase): Color {
   return phase === "synthesizing" ? Color.Orange : Color.Blue;
+}
+
+function includeStoredVoice(voices: VoiceConfig[], storedVoiceId: string | null): VoiceConfig[] {
+  if (!storedVoiceId || voices.some((voice) => voice.id === storedVoiceId)) {
+    return voices;
+  }
+
+  return [
+    {
+      id: storedVoiceId,
+      name: storedVoiceId,
+      category: "Stored",
+      description: "Saved before the voice list changed",
+      gender: "unknown",
+      isCustom: true,
+    },
+    ...voices,
+  ];
 }

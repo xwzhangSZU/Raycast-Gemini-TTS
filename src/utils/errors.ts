@@ -1,9 +1,9 @@
 import { LaunchType, Toast, launchCommand, openExtensionPreferences, showToast } from "@raycast/api";
-import { TTSApiError } from "../api/minimax-tts";
+import { TTSApiError } from "../api/gemini-tts";
 
 const CONFIG_ERROR_CODES = new Set([-1, -6]);
 
-export async function presentCommandError(error: unknown, fallbackTitle = "MiniMax TTS Error"): Promise<void> {
+export async function presentCommandError(error: unknown, fallbackTitle = "Gemini TTS Error"): Promise<void> {
   if (error instanceof TTSApiError) {
     if (CONFIG_ERROR_CODES.has(error.code)) {
       await showToast({

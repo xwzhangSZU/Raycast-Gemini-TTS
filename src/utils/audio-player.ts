@@ -5,8 +5,8 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 import { execSync } from "child_process";
 
-const PID_FILE = join(tmpdir(), "minimax-tts.pid");
-const STOP_FILE = join(tmpdir(), "minimax-tts.stop");
+const PID_FILE = join(tmpdir(), "gemini-tts.pid");
+const STOP_FILE = join(tmpdir(), "gemini-tts.stop");
 
 export class AudioPlayer {
   private currentProcess: ChildProcess | null = null;
@@ -16,11 +16,12 @@ export class AudioPlayer {
   /**
    * Play a single base64-encoded audio chunk.
    */
-  async playAudio(base64Audio: string): Promise<void> {
+  async playAudio(base64Audio: string, speed = 1): Promise<void> {
     const tempPath = this.saveTempFile(base64Audio);
 
     return new Promise<void>((resolve, reject) => {
-      const proc = spawn("afplay", [tempPath]);
+      const args = Number.isFinite(speed) && speed !== 1 ? ["-r", String(speed), tempPath] : [tempPath];
+      const proc = spawn("afplay", args);
       this.currentProcess = proc;
       const myPid = proc.pid;
 
@@ -92,7 +93,7 @@ export class AudioPlayer {
     if (buffer.length === 0) {
       throw new Error("Decoded audio data is empty");
     }
-    const fileName = `minimax-tts-${randomUUID()}.mp3`;
+    const fileName = `gemini-tts-${randomUUID()}.wav`;
     const filePath = join(tmpdir(), fileName);
     writeFileSync(filePath, new Uint8Array(buffer));
     this.tempFiles.push(filePath);

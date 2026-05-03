@@ -1,5 +1,5 @@
 import { showHUD } from "@raycast/api";
-import { synthesizeSpeech } from "../api/minimax-tts";
+import { synthesizeSpeech } from "../api/gemini-tts";
 import { AudioPlayer, hasExternalStopRequest } from "./audio-player";
 import { formatTextSource } from "./text-source";
 import { ReadingSession, saveReadingSession, updateReadingProgress } from "./reading-session";
@@ -69,7 +69,7 @@ export async function playReadingSession(session: ReadingSession, isResuming = f
         updatedAt: new Date().toISOString(),
       });
 
-      await player.playAudio(audio);
+      await player.playAudio(audio, currentSpeed);
 
       if (speedChanged) {
         // Persist the latest speed to the session so Resume Last Reading
