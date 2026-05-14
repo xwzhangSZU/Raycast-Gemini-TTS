@@ -220,10 +220,10 @@ export default function ReadWithVoice() {
           return;
         }
         if (error instanceof TTSApiError) {
-          if (error.code === -1 || error.code === -6) {
+          if (error.code === -1) {
             await showToast({
               style: Toast.Style.Failure,
-              title: error.code === -1 ? "Configuration Required" : "Model Not Available",
+              title: "Configuration Required",
               message: error.message,
               primaryAction: { title: "Open Preferences", onAction: () => openExtensionPreferences() },
             });
