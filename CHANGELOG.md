@@ -28,6 +28,8 @@
 - Quick Read's "Nothing to read" hint now points users at Resume only when a paused reading actually exists, instead of advertising a non-existent option.
 - Reverted the `systemInstruction` split: Gemini's TTS preview models reject it with `HTTP 400 — Developer instruction is not enabled for this model`. The director profile is back inline in `contents`. Verified directly against `gemini-3.1-flash-tts-preview` (HTTP 200, audio returned).
 - Invalid stored voice preferences fall back to the built-in default voice before hitting the Gemini API.
+- Resume Last Reading now reports when the previous text is already complete instead of silently restarting from the beginning.
+- Removed unreachable MiniMax-era "Model Not Available" error branches.
 
 ### Menu Bar
 
