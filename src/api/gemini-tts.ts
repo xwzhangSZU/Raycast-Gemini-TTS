@@ -96,7 +96,7 @@ export async function synthesizeSpeech(
       if (!shouldRetry(error) || attempt === MAX_ATTEMPTS) {
         break;
       }
-      await delay(250 * attempt * attempt, signal);
+      await delay(retryDelayMs(error, attempt), signal);
     }
   }
 
@@ -169,7 +169,7 @@ async function generateSpeechOnce(
 
     if (!response.ok) {
       const message = payload?.error?.message || response.statusText || "Request failed";
-      throw new TTSApiError(`HTTP ${response.status}: ${message}`, response.status);
+      throw new TTSApiError(`HTTP ${response.status}: ${message}`, response.status, parseRetryAfter(response));
     }
 
     const blockReason = payload?.promptFeedback?.blockReason;
@@ -653,10 +653,34 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 
 export class TTSApiError extends Error {
   code: number;
+  retryAfterMs?: number;
 
-  constructor(message: string, code: number) {
+  constructor(message: string, code: number, retryAfterMs?: number) {
     super(message);
     this.name = "TTSApiError";
     this.code = code;
+    if (retryAfterMs !== undefined) this.retryAfterMs = retryAfterMs;
   }
+}
+
+function parseRetryAfter(response: Response): number | undefined {
+  const raw = response.headers.get("retry-after");
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(seconds * 1000, 60_000); // cap at 60s
+  }
+  return undefined;
+}
+
+function retryDelayMs(error: unknown, attempt: number): number {
+  if (error instanceof TTSApiError && error.retryAfterMs) {
+    return error.retryAfterMs;
+  }
+  if (error instanceof TTSApiError && error.code === 429) {
+    // 429 without a Retry-After header: quota windows need real time to
+    // reset, so use a steeper backoff than the transient 5xx path.
+    return 1500 * attempt * attempt;
+  }
+  return 250 * attempt * attempt;
 }

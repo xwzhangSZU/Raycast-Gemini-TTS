@@ -105,7 +105,12 @@ export async function playReadingSession(session: ReadingSession, isResuming = f
         if (isSynthesisCancelled(error) && (player.isStopped() || hasExternalStopRequest())) {
           break;
         }
-        throw error;
+        // Skip a failed chunk instead of aborting the whole session, so a
+        // single transient failure (429 after retries, safety block, empty
+        // audio, or timeout) can't silence the rest of the reading.
+        await showHUD(`Skipped chunk ${i + 1}/${chunkCount}: ${summarizeError(error)}`);
+        activeSession = await updateReadingProgress(activeSession, i + 1);
+        continue;
       } finally {
         prefetchBuffer.delete(i);
       }
@@ -213,4 +218,9 @@ function requestMenuRefresh(): void {
   // forget; failures are non-fatal (the menu bar will catch up on its
   // next interval tick anyway).
   launchCommand({ name: "playback-status", type: LaunchType.Background }).catch(() => undefined);
+}
+
+function summarizeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.length > 120 ? `${message.slice(0, 120)}…` : message;
 }
