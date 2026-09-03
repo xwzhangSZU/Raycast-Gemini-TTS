@@ -1,4 +1,4 @@
-const MAX_CHARS = 1400;
+const MAX_CHARS = 4000;
 const LEAD_MAX_CHARS = 260;
 const LEAD_MIN_CHARS = 60;
 
